@@ -40,6 +40,13 @@ jobs:
       - name: Wipe local state
         run: bazel clean --expunge
 
+      # Snapshot the cache counters BEFORE the rebuild. The cold build above is
+      # all-misses by definition (it populated an empty cache), so the hit rate
+      # is only meaningful for the cache-served rebuild in isolation. Measuring
+      # the delta around just that build excludes the cold populate.
+      - name: Snapshot cache counters before rebuild
+        run: curl -sf http://localhost:8080/metrics > /tmp/metrics-before.txt
+
       - name: Cache-served build — should pull everything from bazel-remote
         run: bazel build --config=ci //...
 
@@ -50,15 +57,31 @@ jobs:
 
       - name: Assert remote cache hit rate
         run: |
-          metrics=$(curl -sf http://localhost:8080/metrics)
-          hits=$(echo "$metrics" | awk '/bazel_remote_incoming_requests_total.*status="hit"/ {s+=$NF} END {print s+0}')
-          total=$(echo "$metrics" | awk '/bazel_remote_incoming_requests_total/ {s+=$NF} END {print s+0}')
-          echo "remote cache: ${hits} hits / ${total} requests"
-          if [ "$total" -gt 0 ]; then
-            rate=$(awk "BEGIN { printf \"%.0f\", 100 * ${hits} / ${total} }")
-            echo "remote cache hit rate: ${rate}%"
-            if [ "$rate" -lt 60 ]; then
-              echo "::error::cache hit rate ${rate}% below 60% threshold"
-              exit 1
-            fi
-          fi
+          curl -sf http://localhost:8080/metrics > /tmp/metrics-after.txt
+          # Delta of hit/miss counters across the two snapshots = traffic from
+          # the cache-served rebuild only. status="hit"/"miss" filters out
+          # uploads and contains-checks, which have no hit/miss semantics.
+          awk '
+            FNR == 1 { fileidx++ }
+            /^bazel_remote_incoming_requests_total/ {
+              val = $NF + 0
+              if ($0 ~ /status="hit"/)  { if (fileidx == 1) hb += val; else ha += val }
+              if ($0 ~ /status="miss"/) { if (fileidx == 1) mb += val; else ma += val }
+            }
+            END {
+              hits = ha - hb
+              misses = ma - mb
+              total = hits + misses
+              printf "cache-served rebuild: %d hits / %d misses\n", hits, misses
+              if (total <= 0) {
+                print "::error::no hit/miss requests recorded for the rebuild"
+                exit 1
+              }
+              rate = 100 * hits / total
+              printf "remote cache hit rate (rebuild): %.0f%%\n", rate
+              if (rate < 80) {
+                printf "::error::cache hit rate %.0f%% below 80%% threshold\n", rate
+                exit 1
+              }
+            }
+          ' /tmp/metrics-before.txt /tmp/metrics-after.txt
