@@ -97,9 +97,10 @@ tools/benchmark.sh
 open http://localhost:3000
 ```
 
-Full instructions: [`docs/SETUP.md`](docs/SETUP.md). Design details:
+Full instructions: [`docs/SETUP.md`](docs/SETUP.md). 
+<!-- Design details:
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Telemetry internals:
-[`docs/TELEMETRY.md`](docs/TELEMETRY.md).
+[`docs/TELEMETRY.md`](docs/TELEMETRY.md). -->
 
 ## Layout
 
