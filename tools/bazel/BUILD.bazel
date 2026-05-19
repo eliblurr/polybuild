@@ -1,0 +1,15 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+exports_files([
+    "service_bundle.bzl",
+    "providers.bzl",
+])
+
+# The tool behind the service_bundle rule. It is a normal py_binary, so it is
+# itself built with the hermetic Python toolchain and runs under exec config.
+py_binary(
+    name = "bundler",
+    srcs = ["bundler.py"],
+    main = "bundler.py",
+    visibility = ["//visibility:public"],
+)

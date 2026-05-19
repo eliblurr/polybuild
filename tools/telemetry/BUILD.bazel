@@ -1,0 +1,11 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+# Parses the Build Event Protocol stream and pushes build metrics to the
+# Prometheus Pushgateway. Run after a build:
+#   bazel run //tools/telemetry:bep_exporter -- --bep-file $PWD/bazel-bep.json
+py_binary(
+    name = "bep_exporter",
+    srcs = ["bep_exporter.py"],
+    main = "bep_exporter.py",
+    visibility = ["//visibility:public"],
+)
