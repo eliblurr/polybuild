@@ -73,10 +73,10 @@ incrementally. The remote cache turns a cold build into a download:
 
 On CI the cache-served rebuild reaches a **>85% remote cache hit rate** — the
 [`ci` workflow](.github/workflows/ci.yml) builds, wipes all local state with
-`bazel clean --expunge`, rebuilds, and asserts the hit rate from
-`bazel-remote`'s own metrics. The assertion is a *delta* measurement: it
-snapshots the cache counters before and after the rebuild, so the cold build
-that populated the cache (all misses, by definition) is excluded.
+`bazel clean --expunge`, rebuilds, and reports the hit rate from
+`bazel-remote`'s own metrics to the GitHub run summary. The report is a *delta*
+measurement: it snapshots the cache counters before and after the rebuild, so
+the cold build that populated the cache (all misses, by definition) is excluded.
 
 > Numbers above are illustrative of *this* small repo. The mechanism is what
 > scales: on a real monorepo the same cache config converts a multi-minute

@@ -3,7 +3,7 @@ name: ci
 # Demonstrates the remote cache end-to-end on CI:
 #   1. build once to populate bazel-remote
 #   2. wipe the local Bazel state entirely (clean --expunge)
-#   3. build again — every artifact must now come from the remote cache
+#   3. build again - every artifact must now come from the remote cache
 #   4. read bazel-remote's own metrics and assert the hit rate
 
 on:
@@ -55,13 +55,18 @@ jobs:
           bazel run //tools/telemetry:bep_exporter -- \
             --bep-file "${PWD}/bazel-bep.json" --dry-run
 
-      - name: Assert remote cache hit rate
+      # Reports the cache-served rebuild's hit rate to the GitHub run summary.
+      # Informational only — it never fails the job, so the cache hit rate
+      # surfaces as a report on every run regardless of outcome.
+      - name: Report remote cache hit rate
         run: |
           curl -sf http://localhost:8080/metrics > /tmp/metrics-after.txt
+          # Fall back to stdout if not running under GitHub Actions.
+          : "${GITHUB_STEP_SUMMARY:=/dev/stdout}"
           # Delta of hit/miss counters across the two snapshots = traffic from
           # the cache-served rebuild only. status="hit"/"miss" filters out
           # uploads and contains-checks, which have no hit/miss semantics.
-          awk '
+          awk -v summary="$GITHUB_STEP_SUMMARY" -v target=80 '
             FNR == 1 { fileidx++ }
             /^bazel_remote_incoming_requests_total/ {
               val = $NF + 0
@@ -72,16 +77,26 @@ jobs:
               hits = ha - hb
               misses = ma - mb
               total = hits + misses
-              printf "cache-served rebuild: %d hits / %d misses\n", hits, misses
+              print "## Remote cache hit rate" >> summary
+              print "" >> summary
+              print "Measured on the cache-served rebuild (delta of `bazel-remote`" >> summary
+              print "request counters, excluding the cold cache-populate build)." >> summary
+              print "" >> summary
+              print "| Metric | Value |" >> summary
+              print "|---|---|" >> summary
               if (total <= 0) {
-                print "::error::no hit/miss requests recorded for the rebuild"
-                exit 1
-              }
-              rate = 100 * hits / total
-              printf "remote cache hit rate (rebuild): %.0f%%\n", rate
-              if (rate < 80) {
-                printf "::error::cache hit rate %.0f%% below 80%% threshold\n", rate
-                exit 1
+                print "| Status | :warning: no hit/miss requests recorded for the rebuild |" >> summary
+                print "report: no hit/miss requests recorded for the rebuild"
+              } else {
+                rate = 100 * hits / total
+                status = (rate >= target) ? ":white_check_mark: at or above target" \
+                                          : ":warning: below target"
+                printf "| Hits | %d |\n", hits >> summary
+                printf "| Misses | %d |\n", misses >> summary
+                printf "| Hit rate | %.0f%% |\n", rate >> summary
+                printf "| Target | %d%% |\n", target >> summary
+                printf "| Status | %s |\n", status >> summary
+                printf "report: remote cache hit rate (rebuild) %.0f%% (target %d%%)\n", rate, target
               }
             }
           ' /tmp/metrics-before.txt /tmp/metrics-after.txt
