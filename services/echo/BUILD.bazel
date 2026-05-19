@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_binary")
+load("//tools/bazel:service_bundle.bzl", "service_bundle")
+
+go_binary(
+    name = "echo",
+    srcs = ["main.go"],
+    visibility = ["//visibility:public"],
+)
+
+service_bundle(
+    name = "bundle",
+    binary = ":echo",
+    service_name = "echo",
+    version = "2.0.1",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary")
+load("//tools/bazel:service_bundle.bzl", "service_bundle")
+
+go_binary(
+    name = "greeter",
+    srcs = ["main.go"],
+    deps = ["//libs/go/greeting"],
+    visibility = ["//visibility:public"],
+)
+
+# Package the statically-linked binary into a stamped, deterministic tarball
+# using the repo's custom rule. Build it with: bazel build //services/greeter:bundle
+service_bundle(
+    name = "bundle",
+    binary = ":greeter",
+    service_name = "greeter",
+    version = "1.4.0",
+    visibility = ["//visibility:public"],
+)
