@@ -1,0 +1,5 @@
+load("@gazelle//:def.bzl", "gazelle")
+
+# Run `bazel run //:gazelle` to (re)generate Go BUILD files from source imports.
+# gazelle:prefix github.com/elvissegbawu/polybuild
+gazelle(name = "gazelle")

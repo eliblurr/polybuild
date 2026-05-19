@@ -1,0 +1,10 @@
+# Bazel symlinks and outputs
+/bazel-*
+# Build telemetry artifacts (regenerated every build)
+/bazel-bep.json
+/bazel-profile.json.gz
+# Personal, machine-local Bazel overrides
+/.bazelrc.user
+# Python
+__pycache__/
+*.pyc

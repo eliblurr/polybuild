@@ -1,0 +1,29 @@
+# polybuild — Bazel module definition (bzlmod).
+#
+# Everything this monorepo depends on is pinned here. There is no system Go,
+# no system Python, and no system C toolchain in the build graph: rules_go and
+# rules_python download hermetic, version-pinned toolchains so a build is
+# reproducible on any machine and cacheable across machines.
+module(
+    name = "polybuild",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_go", version = "0.50.1")
+bazel_dep(name = "gazelle", version = "0.38.0")
+bazel_dep(name = "rules_python", version = "0.36.0")
+
+# --- Hermetic Go toolchain -------------------------------------------------
+# Pinned Go SDK. Bumping this version is the ONLY way the Go compiler changes,
+# which keeps remote-cache keys stable across developer machines and CI.
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(version = "1.23.1")
+
+# --- Hermetic Python toolchain --------------------------------------------
+# Pinned CPython interpreter, downloaded by rules_python. Developer-installed
+# Python is never consulted.
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    python_version = "3.12",
+    is_default = True,
+)

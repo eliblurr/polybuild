@@ -1,0 +1,41 @@
+# polybuild Bazel configuration.
+#
+# Three concerns are configured here:
+#   1. Hermeticity   — keep the host environment out of the build graph.
+#   2. Telemetry     — emit a Build Event Protocol stream for the exporter.
+#   3. Remote cache  — opt-in via --config=remote / --config=ci.
+
+# --- Hermeticity -----------------------------------------------------------
+# Strip the action environment down to a fixed set so a developer's exported
+# shell variables cannot leak into (and silently invalidate) cache keys.
+build --incompatible_strict_action_env
+
+# Stamp builds with git + timestamp provenance. The script writes STABLE_*
+# keys (cache-relevant) and volatile keys (BUILD_TIMESTAMP, not cache-relevant).
+build --workspace_status_command=tools/workspace_status.sh
+
+# --- Telemetry -------------------------------------------------------------
+# Every build emits a BEP JSON stream and a profile. tools/telemetry parses
+# the BEP file and pushes build metrics to the Prometheus Pushgateway.
+build --build_event_json_file=bazel-bep.json
+build --profile=bazel-profile.json.gz
+build --experimental_announce_profile_path
+
+# --- Remote cache (opt-in) -------------------------------------------------
+# Default builds stay fully local/offline. `--config=remote` points Bazel at
+# the bazel-remote container from deploy/telemetry/docker-compose.yml.
+build:remote --remote_cache=grpc://localhost:9092
+build:remote --remote_upload_local_results=true
+build:remote --experimental_remote_cache_compression
+build:remote --remote_timeout=60s
+
+# CI uses the same remote cache as --config=remote. To point CI at a shared
+# cache instead, append `--remote_cache=grpc://host:port` on the command line
+# (rc files do not expand environment variables).
+build:ci --config=remote
+build:ci --build_metadata=ROLE=CI
+build:ci --color=yes
+build:ci --show_timestamps
+
+# Convenience: read a personal .bazelrc if one exists (never checked in).
+try-import %workspace%/.bazelrc.user
