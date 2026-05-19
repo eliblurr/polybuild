@@ -1,0 +1,64 @@
+name: ci
+
+# Demonstrates the remote cache end-to-end on CI:
+#   1. build once to populate bazel-remote
+#   2. wipe the local Bazel state entirely (clean --expunge)
+#   3. build again — every artifact must now come from the remote cache
+#   4. read bazel-remote's own metrics and assert the hit rate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start bazel-remote cache
+        working-directory: deploy/telemetry
+        run: |
+          docker compose up -d bazel-remote
+          # Wait for the cache HTTP endpoint to accept connections.
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/status && break
+            sleep 1
+          done
+
+      # Bazelisk honours .bazelversion, so CI builds with the pinned Bazel.
+      - name: Install Bazelisk
+        run: |
+          sudo curl -sSLo /usr/local/bin/bazel \
+            https://github.com/bazelbuild/bazelisk/releases/download/v1.20.0/bazelisk-linux-amd64
+          sudo chmod +x /usr/local/bin/bazel
+
+      - name: Cold build — populate the remote cache
+        run: bazel build --config=ci //...
+
+      - name: Wipe local state
+        run: bazel clean --expunge
+
+      - name: Cache-served build — should pull everything from bazel-remote
+        run: bazel build --config=ci //...
+
+      - name: Export build telemetry
+        run: |
+          bazel run //tools/telemetry:bep_exporter -- \
+            --bep-file "${PWD}/bazel-bep.json" --dry-run
+
+      - name: Assert remote cache hit rate
+        run: |
+          metrics=$(curl -sf http://localhost:8080/metrics)
+          hits=$(echo "$metrics" | awk '/bazel_remote_incoming_requests_total.*status="hit"/ {s+=$NF} END {print s+0}')
+          total=$(echo "$metrics" | awk '/bazel_remote_incoming_requests_total/ {s+=$NF} END {print s+0}')
+          echo "remote cache: ${hits} hits / ${total} requests"
+          if [ "$total" -gt 0 ]; then
+            rate=$(awk "BEGIN { printf \"%.0f\", 100 * ${hits} / ${total} }")
+            echo "remote cache hit rate: ${rate}%"
+            if [ "$rate" -lt 60 ]; then
+              echo "::error::cache hit rate ${rate}% below 60% threshold"
+              exit 1
+            fi
+          fi
