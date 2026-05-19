@@ -1,0 +1,182 @@
+{
+  "uid": "polybuild-build-health",
+  "title": "polybuild :: build health",
+  "tags": ["polybuild", "bazel"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Remote cache hit rate",
+      "description": "Share of bazel-remote requests served from cache. Scraped from the bazel-remote container.",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.6 },
+              { "color": "green", "value": 0.85 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "expr": "sum(bazel_remote_incoming_requests_total{status=\"hit\"}) / clamp_min(sum(bazel_remote_incoming_requests_total), 1)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "p95 build wall time (7d)",
+      "description": "95th-percentile wall time of bazel build //... over the last 7 days.",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "expr": "quantile_over_time(0.95, polybuild_build_wall_seconds[7d])"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Last build wall time",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "expr": "polybuild_build_wall_seconds"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Last build result",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "FAILED", "color": "red" }, "1": { "text": "PASSED", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "expr": "polybuild_build_success"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Remote cache hit rate over time",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "legendFormat": "hit rate (5m)",
+          "expr": "sum(rate(bazel_remote_incoming_requests_total{status=\"hit\"}[5m])) / clamp_min(sum(rate(bazel_remote_incoming_requests_total[5m])), 1)"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Build wall time per run",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10, "lineWidth": 2, "drawStyle": "line", "pointSize": 6, "showPoints": "always" } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "legendFormat": "wall",
+          "expr": "polybuild_build_wall_seconds"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "legendFormat": "execution phase",
+          "expr": "polybuild_build_execution_seconds"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Actions: created vs executed",
+      "description": "Created = nodes in the action graph. Executed = nodes that actually ran (not served from cache). The gap is local cache effectiveness.",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "legendFormat": "created",
+          "expr": "polybuild_actions_created"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "legendFormat": "executed",
+          "expr": "polybuild_actions_executed"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Actions executed by mnemonic (last build)",
+      "description": "Target-level performance: which kinds of actions re-ran on the most recent build.",
+      "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "orientation": "horizontal", "legend": { "showLegend": false } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "polybuild-prometheus" },
+          "instant": true,
+          "format": "table",
+          "legendFormat": "{{mnemonic}}",
+          "expr": "polybuild_action_mnemonic_executed"
+        }
+      ]
+    }
+  ]
+}

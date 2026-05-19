@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # bazel-remote publishes cache counters itself; this is the source of truth
+  # for cache hit rate. Metric: bazel_remote_incoming_requests_total.
+  - job_name: bazel-remote
+    static_configs:
+      - targets: ["bazel-remote:8080"]
+
+  # Per-build metrics PUT by tools/telemetry/bep_exporter. honor_labels keeps
+  # the exporter's own job label instead of overwriting it with "pushgateway".
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]
